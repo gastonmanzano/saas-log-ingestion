@@ -2,7 +2,8 @@ import json
 import os
 import requests
 from datetime import datetime
-from app.config.settings import API_URL, CURSOR_FILE, PAGE_NUMBER, LIMIT, BATCH_SIZE, RAW_DATA_DIR
+from app.config.settings import API_URL, CURSOR_FILE, PAGE_NUMBER, LIMIT, BATCH_SIZE, RAW_DATA_DIR, KAFKA_HOST, KAFKA_TOPIC_NAME
+from kafka import KafkaProducer
 
 class SaasIngestor:
     def __init__(self):
@@ -14,6 +15,8 @@ class SaasIngestor:
         self.last_page_count = 0
         self.raw_data_dir = RAW_DATA_DIR
         self.load_cursor()
+        self.kafka_topic_name = KAFKA_TOPIC_NAME
+        self.producer = KafkaProducer(bootstrap_servers=KAFKA_HOST)
 
 
     def load_cursor(self):
@@ -88,12 +91,19 @@ class SaasIngestor:
         with open(filepath, "w") as f:
             json.dump(data, f, indent=2)
         print(f"[INFO] Saved {len(data)} logs to {filepath}")
+        return filepath
+    
+    def send_to_kafka_queue(self, filepath):
+        self.producer.send(self.kafka_topic_name, filepath.encode('utf-8'))
+        self.producer.flush()
+    
 
     def run(self):
         data = self.fetch_data()
 
         if data:
-            self.save_data(data)
+            filepath = self.save_data(data)
+            self.send_to_kafka_queue(filepath)
             self.save_cursor()
         else:
             print("[INFO] No new data found")

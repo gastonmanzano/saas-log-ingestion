@@ -1,3 +1,5 @@
 requests
 pyspark
 python-dotenv
+kafka-python
+schedule
